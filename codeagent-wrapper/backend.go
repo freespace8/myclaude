@@ -36,6 +36,12 @@ func (ClaudeBackend) BuildArgs(cfg *Config, targetArg string) []string {
 		args = append(args, "--dangerously-skip-permissions")
 	}
 
+	model := cfg.Model
+	if model == "" {
+		model = "opus"
+	}
+	args = append(args, "--model", model)
+
 	workdir := cfg.WorkDir
 	if workdir == "" {
 		workdir = defaultWorkdir

@@ -56,7 +56,29 @@ You are the /dev Workflow Orchestrator, an expert development workflow manager s
   [API design, data models, architecture choices made]
 
   ## Task Breakdown
-  [2-5 tasks with: ID, description, file scope, dependencies, test command]
+  [2-8 tasks based on complexity, with: ID, description, file scope, dependencies, parallel note, test command]
+
+  ## Split Criteria
+
+  **Core Principle**: Split tasks like assigning work to different developers—each task should be simple enough for one person (agent) to complete independently, enabling parallel execution for efficiency.
+
+  **Split Goals** (in priority order):
+  1. **Reduce Complexity**: Each task should have a single clear objective that one agent can fully understand and implement
+  2. **Enable Parallelism**: Maximize tasks that can run concurrently without blocking each other
+  3. **Minimize Coordination**: Clear interfaces between tasks, no shared file modifications
+
+  **When to Split** (ANY condition triggers split):
+  - Task has multiple distinct responsibilities (e.g., "setup + implement + test")
+  - Task spans different tech layers (backend API + frontend UI + database)
+  - Task scope exceeds 300 LOC or touches >5 files
+  - Task requires context-switching between unrelated concerns
+  - A junior developer would struggle to hold the full task in their head
+
+  **When NOT to Split**:
+  - Splitting would create tight coupling requiring constant coordination
+  - Subtasks would modify the same files (merge conflicts)
+  - The overhead of defining interfaces exceeds the parallelism benefit
+  - Task is already atomic (single file, single concern, <100 LOC)
 
   ## UI Determination
   needs_ui: [true/false]
@@ -67,6 +89,27 @@ You are the /dev Workflow Orchestrator, an expert development workflow manager s
   - Simple, straightforward implementation with obvious approach
   - Small changes confined to 1-2 files
   - Clear requirements with single implementation path
+
+- **Step 2.5: Opus Analysis Review & Refinement**
+  - Use Opus to review and refine Codex's analysis:
+    ```bash
+    codeagent-wrapper --backend claude --model opus - <<'EOF'
+    Review and refine the analysis from @.claude/specs/{feature_name}/analysis.md
+
+    Review checklist:
+    1. Architectural soundness - are decisions technically solid?
+    2. Missing edge cases - any overlooked scenarios?
+    3. Task breakdown quality - are tasks truly parallelizable and well-scoped?
+    4. Security/performance concerns - any red flags?
+    5. Better alternatives - suggest improvements if any
+
+    Output:
+    - If no issues: return "LGTM" only
+    - If issues found: return the complete refined analysis (same format as original)
+    EOF
+    ```
+  - Use Opus output directly for Step 3; no intermediate file writes
+  - Skip this step for trivial tasks to save time
 
 - **Step 3: Generate Development Documentation**
   - invoke agent dev-plan-generator
@@ -82,26 +125,51 @@ You are the /dev Workflow Orchestrator, an expert development workflow manager s
   - If user chooses "Need adjustments", return to Step 1 or Step 2 based on feedback
 
 - **Step 4: Parallel Development Execution**
-  - For each task in `dev-plan.md`, invoke codeagent skill with task brief in HEREDOC format:
+  - Execute all tasks in parallel using codeagent-wrapper with per-task backend selection:
     ```bash
-    # Backend task (use codex backend - default)
-    codeagent-wrapper --backend codex - <<'EOF'
-    Task: [task-id]
+    codeagent-wrapper --parallel <<'EOF'
+    ---TASK---
+    id: task-1
+    backend: claude
+    model: opus
+    workdir: /path/to/project
+    ---CONTENT---
+    Task: task-1
     Reference: @.claude/specs/{feature_name}/dev-plan.md
     Scope: [task file scope]
-    Test: [test command]
-    Deliverables: code + unit tests + coverage ≥90% + coverage summary
-    EOF
+    Note: Simple task (config/docs/refactor <50 LOC)
+    Deliverables: code changes + verification
 
-    # UI task (use gemini backend - enforced)
-    codeagent-wrapper --backend gemini - <<'EOF'
-    Task: [task-id]
+    ---TASK---
+    id: task-2
+    backend: codex
+    workdir: /path/to/project
+    dependencies: task-1
+    ---CONTENT---
+    Task: task-2
     Reference: @.claude/specs/{feature_name}/dev-plan.md
     Scope: [task file scope]
     Test: [test command]
     Deliverables: code + unit tests + coverage ≥90% + coverage summary
+
+    ---TASK---
+    id: task-3
+    backend: gemini
+    workdir: /path/to/project
+    ---CONTENT---
+    Task: task-3
+    Reference: @.claude/specs/{feature_name}/dev-plan.md
+    Scope: [task file scope]
+    Test: [test command]
+    Deliverables: UI code + unit tests + coverage ≥90% + coverage summary
     EOF
     ```
+
+  **Backend Selection Guide**:
+  - **Opus** (`backend: claude` + `model: opus`): Simple tasks <50 LOC (config/docs/rename), fast and high quality
+  - **Codex** (`backend: codex`): Complex backend logic, code generation, unit tests
+  - **Gemini** (`backend: gemini`): UI/frontend tasks requiring visual design expertise
+
   - Execute independent tasks concurrently; serialize conflicting ones; track coverage reports
 
 - **Step 5: Coverage Validation**

@@ -1371,7 +1371,7 @@ func TestBackendBuildArgs_ClaudeBackend(t *testing.T) {
 	backend := ClaudeBackend{}
 	cfg := &Config{Mode: "new", WorkDir: defaultWorkdir}
 	got := backend.BuildArgs(cfg, "todo")
-	want := []string{"-p", "-C", defaultWorkdir, "--output-format", "stream-json", "--verbose", "todo"}
+	want := []string{"-p", "--model", "opus", "-C", defaultWorkdir, "--output-format", "stream-json", "--verbose", "todo"}
 	if len(got) != len(want) {
 		t.Fatalf("length mismatch")
 	}
@@ -1392,7 +1392,7 @@ func TestClaudeBackendBuildArgs_OutputValidation(t *testing.T) {
 	target := "ensure-flags"
 
 	args := backend.BuildArgs(cfg, target)
-	expectedPrefix := []string{"-p", "--output-format", "stream-json", "--verbose"}
+	expectedPrefix := []string{"-p", "--model", "opus", "--output-format", "stream-json", "--verbose"}
 
 	if len(args) != len(expectedPrefix)+1 {
 		t.Fatalf("args length=%d, want %d", len(args), len(expectedPrefix)+1)

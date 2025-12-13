@@ -31,6 +31,24 @@ codeagent-wrapper --backend claude - <<'EOF'
 EOF
 ```
 
+**With model selection (Claude only)**:
+```bash
+# Use Opus for complex reasoning or fast simple tasks
+codeagent-wrapper --backend claude --model opus - <<'EOF'
+<task content here>
+EOF
+
+# Use Sonnet for balanced performance (default for Claude)
+codeagent-wrapper --backend claude --model sonnet - <<'EOF'
+<task content here>
+EOF
+
+# Use Haiku for ultra-fast simple tasks
+codeagent-wrapper --backend claude --model haiku - <<'EOF'
+<task content here>
+EOF
+```
+
 **Simple tasks**:
 ```bash
 codeagent-wrapper "simple task" [working_dir]
@@ -51,6 +69,11 @@ codeagent-wrapper --backend gemini "simple task"
 - `working_dir` (optional): Working directory (default: current)
 - `--backend` (optional): Select AI backend (codex/claude/gemini, default: codex)
   - **Note**: Claude backend defaults to `--dangerously-skip-permissions` for automation compatibility
+- `--model` (optional): Select model for Claude backend (opus/sonnet/haiku, default: sonnet)
+  - **opus**: Highest quality, fastest for simple tasks, best for complex reasoning
+  - **sonnet**: Balanced performance and speed
+  - **haiku**: Ultra-fast for trivial tasks
+  - **Note**: Only works with `--backend claude`, ignored for other backends
 
 ## Return Format
 
@@ -105,6 +128,7 @@ analyze code structure
 ---TASK---
 id: task2
 backend: claude
+model: opus
 dependencies: task1
 ---CONTENT---
 design architecture based on analysis
@@ -113,7 +137,7 @@ id: task3
 backend: gemini
 dependencies: task2
 ---CONTENT---
-generate implementation code
+generate UI implementation
 EOF
 ```
 
@@ -147,6 +171,7 @@ Bash tool parameters:
   ---TASK---
   id: task_id
   backend: <backend>  # Optional, overrides global
+  model: <model>      # Optional, for Claude backend only (opus/sonnet/haiku)
   workdir: /path
   dependencies: dep1, dep2
   ---CONTENT---
