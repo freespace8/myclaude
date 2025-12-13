@@ -53,7 +53,7 @@ func (ClaudeBackend) BuildArgs(cfg *Config, targetArg string) []string {
 			args = append(args, "-r", cfg.SessionID)
 		}
 	} else {
-		args = append(args, "-C", workdir)
+		args = append(args, "--add-dir", workdir)
 	}
 
 	args = append(args, "--output-format", "stream-json", "--verbose", targetArg)
@@ -83,7 +83,7 @@ func (GeminiBackend) BuildArgs(cfg *Config, targetArg string) []string {
 			args = append(args, "-r", cfg.SessionID)
 		}
 	} else {
-		args = append(args, "-C", workdir)
+		args = append(args, "--include-directories", workdir)
 	}
 
 	args = append(args, "-p", targetArg)
