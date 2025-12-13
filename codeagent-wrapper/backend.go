@@ -42,19 +42,13 @@ func (ClaudeBackend) BuildArgs(cfg *Config, targetArg string) []string {
 	}
 	args = append(args, "--model", model)
 
-	workdir := cfg.WorkDir
-	if workdir == "" {
-		workdir = defaultWorkdir
-	}
-
 	if cfg.Mode == "resume" {
 		if cfg.SessionID != "" {
 			// Claude CLI uses -r <session_id> for resume.
 			args = append(args, "-r", cfg.SessionID)
 		}
-	} else {
-		args = append(args, "-C", workdir)
 	}
+	// Note: claude CLI doesn't support -C flag; workdir set via cmd.Dir
 
 	args = append(args, "--output-format", "stream-json", "--verbose", targetArg)
 
@@ -73,18 +67,12 @@ func (GeminiBackend) BuildArgs(cfg *Config, targetArg string) []string {
 	}
 	args := []string{"-o", "stream-json", "-y"}
 
-	workdir := cfg.WorkDir
-	if workdir == "" {
-		workdir = defaultWorkdir
-	}
-
 	if cfg.Mode == "resume" {
 		if cfg.SessionID != "" {
 			args = append(args, "-r", cfg.SessionID)
 		}
-	} else {
-		args = append(args, "-C", workdir)
 	}
+	// Note: gemini CLI doesn't support -C flag; workdir set via cmd.Dir
 
 	args = append(args, "-p", targetArg)
 
