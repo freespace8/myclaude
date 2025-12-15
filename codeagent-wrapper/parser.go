@@ -54,9 +54,6 @@ func parseJSONStreamWithLog(r io.Reader, warnFn func(string), infoFn func(string
 }
 
 func parseJSONStreamInternal(r io.Reader, warnFn func(string), infoFn func(string), onMessage func()) (message, threadID string) {
-	scanner := bufio.NewScanner(r)
-	scanner.Buffer(make([]byte, 64*1024), 10*1024*1024)
-
 	if warnFn == nil {
 		warnFn = func(string) {}
 	}
@@ -78,17 +75,21 @@ func parseJSONStreamInternal(r io.Reader, warnFn func(string), infoFn func(strin
 		geminiBuffer  strings.Builder
 	)
 
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
+	truncateBytes := func(b []byte, maxLen int) string {
+		if len(b) <= maxLen {
+			return string(b)
 		}
-		totalEvents++
+		if maxLen < 0 {
+			return ""
+		}
+		return string(b[:maxLen]) + "..."
+	}
 
+	processLine := func(line []byte) {
 		var raw map[string]json.RawMessage
-		if err := json.Unmarshal([]byte(line), &raw); err != nil {
-			warnFn(fmt.Sprintf("Failed to parse line: %s", truncate(line, 100)))
-			continue
+		if err := json.Unmarshal(line, &raw); err != nil {
+			warnFn(fmt.Sprintf("Failed to parse line: %s", truncateBytes(line, 100)))
+			return
 		}
 
 		hasItemType := false
@@ -111,9 +112,9 @@ func parseJSONStreamInternal(r io.Reader, warnFn func(string), infoFn func(strin
 		switch {
 		case isCodex:
 			var event JSONEvent
-			if err := json.Unmarshal([]byte(line), &event); err != nil {
-				warnFn(fmt.Sprintf("Failed to parse Codex event: %s", truncate(line, 100)))
-				continue
+			if err := json.Unmarshal(line, &event); err != nil {
+				warnFn(fmt.Sprintf("Failed to parse Codex event: %s", truncateBytes(line, 100)))
+				return
 			}
 
 			var details []string
@@ -149,9 +150,9 @@ func parseJSONStreamInternal(r io.Reader, warnFn func(string), infoFn func(strin
 
 		case hasKey(raw, "subtype") || hasKey(raw, "result"):
 			var event ClaudeEvent
-			if err := json.Unmarshal([]byte(line), &event); err != nil {
-				warnFn(fmt.Sprintf("Failed to parse Claude event: %s", truncate(line, 100)))
-				continue
+			if err := json.Unmarshal(line, &event); err != nil {
+				warnFn(fmt.Sprintf("Failed to parse Claude event: %s", truncateBytes(line, 100)))
+				return
 			}
 
 			if event.SessionID != "" && threadID == "" {
@@ -167,9 +168,9 @@ func parseJSONStreamInternal(r io.Reader, warnFn func(string), infoFn func(strin
 
 		case hasKey(raw, "role") || hasKey(raw, "delta"):
 			var event GeminiEvent
-			if err := json.Unmarshal([]byte(line), &event); err != nil {
-				warnFn(fmt.Sprintf("Failed to parse Gemini event: %s", truncate(line, 100)))
-				continue
+			if err := json.Unmarshal(line, &event); err != nil {
+				warnFn(fmt.Sprintf("Failed to parse Gemini event: %s", truncateBytes(line, 100)))
+				return
 			}
 
 			if event.SessionID != "" && threadID == "" {
@@ -184,12 +185,29 @@ func parseJSONStreamInternal(r io.Reader, warnFn func(string), infoFn func(strin
 			infoFn(fmt.Sprintf("Parsed Gemini event #%d type=%s role=%s delta=%t status=%s content_len=%d", totalEvents, event.Type, event.Role, event.Delta, event.Status, len(event.Content)))
 
 		default:
-			warnFn(fmt.Sprintf("Unknown event format: %s", truncate(line, 100)))
+			warnFn(fmt.Sprintf("Unknown event format: %s", truncateBytes(line, 100)))
 		}
 	}
 
-	if err := scanner.Err(); err != nil && !errors.Is(err, io.EOF) {
-		warnFn("Read stdout error: " + err.Error())
+	reader := bufio.NewReader(r)
+	for {
+		line, err := reader.ReadBytes('\n')
+
+		if len(line) > 0 {
+			line = bytes.TrimSpace(line)
+			if len(line) > 0 {
+				totalEvents++
+				processLine(line)
+			}
+		}
+
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			warnFn("Read stdout error: " + err.Error())
+			break
+		}
 	}
 
 	switch {
